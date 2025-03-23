@@ -5,6 +5,15 @@ import { Alert, AlertDescription } from "./alert";
 import Navigationbar from "./Navigationbar";
 import mermaid from "mermaid";
 
+// Initialize mermaid only once at the application level
+mermaid.initialize({ 
+  startOnLoad: false,  // Change to false to manually control rendering
+  theme: 'dark',
+  securityLevel: 'loose',
+  // Add error handling
+  logLevel: 'error',
+});
+
 const Home = () => {
   const messagesEndRef = useRef(null);
   const [messages, setMessages] = useState([
@@ -13,24 +22,48 @@ const Home = () => {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [repoCloned, setRepoCloned] = useState(false);
+
+  // Add a ref to track when new messages with diagrams are added
+  const diagramsAddedRef = useRef(false);
 
   useEffect(() => {
     scrollToBottom();
-    // Initialize mermaid with specific settings
-    mermaid.initialize({ 
-      startOnLoad: true,
-      theme: 'dark',
-      securityLevel: 'loose'
-    });
     
-    // Run content loaded after messages update and DOM rendering
-    setTimeout(() => {
-      try {
-        mermaid.contentLoaded();
-      } catch (e) {
-        console.error("Mermaid parsing error:", e);
-      }
-    }, 100);
+    // Check if new diagrams were added
+    if (messages.some(msg => msg.type === 'diagram')) {
+      diagramsAddedRef.current = true;
+      
+      // Use a more flexible approach to render diagrams
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        try {
+          // Use a more reliable method to render all diagrams
+          document.querySelectorAll('.mermaid').forEach((element) => {
+            // Only render elements that haven't been processed
+            if (!element.hasAttribute('data-processed')) {
+              const content = element.textContent || '';
+              
+              // Clear the element before rendering
+              element.innerHTML = '';
+              
+              // Use the mermaid render method for more control
+              mermaid.render(`mermaid-diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, content)
+                .then(({ svg }) => {
+                  element.innerHTML = svg;
+                  element.setAttribute('data-processed', 'true');
+                })
+                .catch(error => {
+                  console.error("Mermaid rendering error:", error);
+                  element.innerHTML = `<div class="error-message">Error rendering diagram: ${error.message}</div>`;
+                });
+            }
+          });
+        } catch (e) {
+          console.error("Mermaid processing error:", e);
+        }
+      });
+    }
   }, [messages]);
 
   const scrollToBottom = () => {
@@ -89,35 +122,76 @@ const Home = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
-
-    const userMessage = { role: "user", content: inputValue, type: "text" };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue("");
+  
     setIsLoading(true);
     setError("");
-
-    try {
-      // In a real implementation, you would call your API here
-      // For demo purposes, we're using the sample response
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Sample response similar to your second paste
-      const sampleResponse = {"Response":"The provided codebase implements a system for converting code into a graph representation, storing it in a ChromaDB, and querying it with a local LLM for question-answering. Here's a breakdown of the architecture:\n\n**1. Code Conversion and Storage:**\n\n*   **`codeToGraphConverter.py`:** This module is the core of the code-to-graph conversion process.\n    *   `CodeConverter` class: This class uses the `ast` module to parse Python code into an Abstract Syntax Tree (AST). It then traverses the AST using the `NodeVisitor` class.\n        *   `__init__`: Initializes an empty list `chunks` to store code snippets.\n        *   `visit_FunctionDef`:  This method is triggered when a function definition (`FunctionDef` node) is encountered in the AST. It extracts the function's code using `ast.unparse()` and appends it to the `chunks` list.\n        *   `visit_ClassDef`: This method works similarly to `visit_FunctionDef`, but for class definitions (`ClassDef` nodes).\n        *   `convert`: This method takes a file path as input, reads the file content, parses it into an AST, creates a `CodeConverter` instance, visits the AST to extract code chunks, and returns the `chunks` list.  Essentially, this extracts functions and classes to a list of strings(code).\n*   **`PushToDB.py`:** This module handles storing the extracted code snippets into a ChromaDB database. It likely takes the output of `codeToGraphConverter` (a list of code chunks) and persists them in the database.\n*   **`GetFromDB.py`:** This module facilitates retrieving code snippets from the ChromaDB based on a query. This likely involves searching the database using a query and retrieving matching code relevant to the prompt.\n\n**2. Question Answering with LLM:**\n\n*   **`main.py`:** This module is the entry point of the system.\n    *   `runLLM`: This function presumably takes a query as input, uses `Fetch_from_DB` (from `GetFromDB.py`) to retrieve relevant code (context) from the ChromaDB, and then passes the question and context to a local LLM (likely using an API like OpenAI with a local model). It gets the answer from the LLM.\n\n**3. Supporting Modules (example file):**\n\n*   **`FilesToConvert/sample.py`:** This directory/file contains example Python code (in this case web scraping logic). From the overview, there are also other files in the `FilesToConvert` folder.  The purpose is that these can be converted, stored, and recalled by the LLM.\n\n**Overall Architecture:**\n\nThe system follows a pipeline:\n\n1.  **Code Extraction:** Python code files are processed by `codeToGraphConverter.py` to identify and extract function and class definitions.\n2.  **Data Storage:** Extracted code snippets are stored in ChromaDB (using `PushToDB.py`).\n3.  **Query Processing:**\n    *   A query/question is passed to `runLLM` in `main.py`.\n    *   `Fetch_from_DB` in `GetFromDB.py` retrieves relevant code snippets from ChromaDB based on the query.\n4.  **LLM Interaction:** The question and retrieved code chunks are fed to a local LLM. The LLM generates an answer.\n\n**Diagrams:**\n\n1.  **System Architecture Diagram:**\n\n    This diagram shows the components and their interactions:\n\n    ```mermaid.js\n    graph LR\n        A[User] --> B(main.py: runLLM)\n        B --> C(GetFromDB: Fetch_from_DB)\n        C --> D{ChromaDB}\n        D -.-> C\n        C --> B\n        B --> E{Local LLM}\n        E -.-> B\n        B --> F[Answer]\n        B --> G{Files to convert}\n        G --> H(codeToGraphConverter.py: convert)\n        H --> D\n        H --> I(PushToDB: Push_to_DB)\n        style D fill:#f9f,stroke:#333,stroke-width:2px\n        style E fill:#ccf,stroke:#333,stroke-width:2px\n    ```\n\n2.  **Sequence Diagram (Conceptual):**\n\n    This diagram outlines the sequence of actions when answering a question:\n\n    ```mermaid.js\n    sequenceDiagram\n        participant User\n        participant Main\n        participant GetFromDB\n        participant ChromaDB\n        participant LLM\n\n        User->>Main: Ask Question\n        Main->>GetFromDB: Fetch Relevant Code (Query)\n        GetFromDB->>ChromaDB: Search for Code Snippets\n        ChromaDB-->>GetFromDB: Matching Code Snippets\n        GetFromDB->>Main: Return Code Snippets\n        Main->>LLM: Question + Code Snippets\n        LLM-->>Main: Answer\n        Main->>User: Display Answer\n    ```\n"};
-      
-      // Parse the LLM response to separate text and diagrams
-      const parsedContent = parseLLMResponse(sampleResponse.Response || inputValue);
-      
-      // Add each content part as a separate message
-      parsedContent.forEach(item => {
-        setMessages(prev => [...prev, { role: "system", content: item.content, type: item.type }]);
-      });
-    } catch (err) {
-      console.error("Error:", err);
-      setError("Failed to process response. Please try again.");
-    } finally {
-      setIsLoading(false);
+  
+    if (!repoCloned) {
+      // Step 1: Clone the repository first
+      try {
+        const response = await fetch("http://localhost:8000/clonerepo", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url: inputValue })
+        });
+  
+        const data = await response.json();
+  
+        if (data.status === "Ok") {
+          setRepoCloned(true);
+          setMessages(prev => [
+            ...prev,
+            { role: "system", content: "✅ Repository cloned successfully! Now you can ask questions about the code.", type: "text" }
+          ]);
+        } else {
+          throw new Error("Failed to clone the repository. Please enter a valid GitHub URL.");
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        setError("Failed to clone repository. Please try again.");
+        return;
+      } finally {
+        setIsLoading(false);
+        setInputValue(""); // Clear the input field
+      }
+    } else {
+      // Step 2: Generate response after cloning
+      try {
+        const userMessage = { role: "user", content: inputValue, type: "text" };
+        setMessages(prev => [...prev, userMessage]);
+        setInputValue("");
+  
+        const response = await fetch("http://localhost:8000/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ question: inputValue })
+        });
+  
+        if (!response.ok) {
+          throw new Error("Failed to get a response from the backend.");
+        }
+  
+        const data = await response.json();
+        const parsedContent = parseLLMResponse(data.Response || inputValue);
+  
+        parsedContent.forEach(item => {
+          setMessages(prev => [...prev, { role: "system", content: item.content, type: item.type }]);
+        });
+  
+      } catch (err) {
+        console.error("Error:", err);
+        setError("Failed to process response. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
+
+
 
   return (
     <div className="flex flex-col w-screen min-h-screen bg-black text-white relative overflow-x-hidden">
@@ -165,7 +239,10 @@ const Home = () => {
                     transition={{ duration: 0.3 }}
                     className="w-full p-4 rounded-2xl bg-white/10 backdrop-blur-md"
                   >
-                    <div className="mermaid bg-white/5 p-4 rounded-lg text-white">{message.content}</div>
+                    {/* Add a key to force re-render when content changes */}
+                    <div className="mermaid bg-white/5 p-4 rounded-lg text-white" key={`diagram-${index}`}>
+                      {message.content}
+                    </div>
                   </motion.div>
                 </div>
               );
@@ -210,13 +287,20 @@ const Home = () => {
       <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-md w-full fixed bottom-0 z-10">
         <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
           <div className="flex items-start space-x-2 w-full">
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Enter GitHub repository URL or ask a question about your code..."
-              className="flex-1 p-4 h-15 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              disabled={isLoading}
-            />
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+            placeholder={repoCloned ? "Ask a question about the code..." : "Enter GitHub repository URL..."}
+            className="flex-1 p-4 h-15 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+            disabled={isLoading}
+          />
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
