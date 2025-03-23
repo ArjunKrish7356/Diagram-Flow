@@ -1,17 +1,19 @@
 import React, { useRef, useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Loader2, AlertCircle, Send } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, AlertCircle, Send, ChevronDown } from "lucide-react";
 import { Alert, AlertDescription } from "./alert";
 import Navigationbar from "./Navigationbar";
 import mermaid from "mermaid";
 
-// Initialize mermaid only once at the application level
+// Initialize mermaid with improved settings and error handling
 mermaid.initialize({ 
-  startOnLoad: false,  // Change to false to manually control rendering
+  startOnLoad: false,
   theme: 'dark',
   securityLevel: 'loose',
-  // Add error handling
   logLevel: 'error',
+  fontFamily: 'Inter, sans-serif',
+  fontSize: 14,
+  curve: 'linear'
 });
 
 const Home = () => {
@@ -23,31 +25,21 @@ const Home = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [repoCloned, setRepoCloned] = useState(false);
-
-  // Add a ref to track when new messages with diagrams are added
   const diagramsAddedRef = useRef(false);
 
   useEffect(() => {
     scrollToBottom();
     
-    // Check if new diagrams were added
     if (messages.some(msg => msg.type === 'diagram')) {
       diagramsAddedRef.current = true;
       
-      // Use a more flexible approach to render diagrams
-      // Use requestAnimationFrame to ensure DOM is ready
       requestAnimationFrame(() => {
         try {
-          // Use a more reliable method to render all diagrams
           document.querySelectorAll('.mermaid').forEach((element) => {
-            // Only render elements that haven't been processed
             if (!element.hasAttribute('data-processed')) {
               const content = element.textContent || '';
-              
-              // Clear the element before rendering
               element.innerHTML = '';
               
-              // Use the mermaid render method for more control
               mermaid.render(`mermaid-diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, content)
                 .then(({ svg }) => {
                   element.innerHTML = svg;
@@ -55,7 +47,7 @@ const Home = () => {
                 })
                 .catch(error => {
                   console.error("Mermaid rendering error:", error);
-                  element.innerHTML = `<div class="error-message">Error rendering diagram: ${error.message}</div>`;
+                  element.innerHTML = `<div class="error-message p-3 rounded bg-red-800/40 text-red-200 text-sm">Error rendering diagram: ${error.message}</div>`;
                 });
             }
           });
@@ -194,119 +186,128 @@ const Home = () => {
 
 
   return (
-    <div className="flex flex-col w-screen min-h-screen bg-black text-white relative overflow-x-hidden">
+    <div className="flex flex-col w-screen min-h-screen bg-gray-950 text-white relative overflow-x-hidden">
       <Navigationbar />
 
-      {/* Background Effects */}
+      {/* More subtle background effects */}
       <motion.div
-        initial={{ opacity: 0.1 }}
-        animate={{ opacity: 0.15 }}
-        transition={{ duration: 0.8 }}
-        className="absolute top-20 left-0 w-full h-[500px] rounded-full bg-purple-600 blur-[128px] z-0"
+        initial={{ opacity: 0.05 }}
+        animate={{ opacity: 0.08 }}
+        transition={{ duration: 1.2 }}
+        className="absolute top-20 left-0 w-full h-[500px] rounded-full bg-purple-700 blur-[160px] z-0"
       />
       <motion.div
-        initial={{ opacity: 0.1 }}
-        animate={{ opacity: 0.15 }}
-        transition={{ duration: 0.8 }}
-        className="absolute top-40 right-0 w-[500px] h-[500px] rounded-full bg-blue-600 blur-[128px] z-0"
+        initial={{ opacity: 0.05 }}
+        animate={{ opacity: 0.08 }}
+        transition={{ duration: 1.2 }}
+        className="absolute top-40 right-0 w-[500px] h-[500px] rounded-full bg-blue-700 blur-[160px] z-0"
       />
 
-      {/* Chat Interface with Side-by-Side Layout for Explanation and Diagrams */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-black/90 backdrop-blur-md mt-20 relative z-10 w-full overflow-x-hidden">
-        {/* User Messages */}
-        {messages.map((message, index) => {
-          if (message.role === "user") {
-            return (
-              <div key={index} className="flex justify-end w-full">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+      {/* Improved message container with better spacing */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-950/95 backdrop-blur-md mt-20 relative z-10 w-full overflow-x-hidden mb-24">
+        <AnimatePresence>
+          {messages.map((message, index) => {
+            if (message.role === "user") {
+              return (
+                <motion.div 
+                  key={index} 
+                  className="flex justify-end w-full"
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="max-w-3xl p-4 rounded-2xl bg-purple-600 text-white"
                 >
-                  {message.content}
+                  <div className="max-w-2xl p-4 rounded-2xl rounded-tr-sm bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg">
+                    {message.content}
+                  </div>
                 </motion.div>
-              </div>
-            );
-          } else {
-            // System message with text or diagram
-            if (message.type === "diagram") {
-              return (
-                <div key={index} className="flex justify-start w-full">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="w-full p-4 rounded-2xl bg-white/10 backdrop-blur-md"
-                  >
-                    {/* Add a key to force re-render when content changes */}
-                    <div className="mermaid bg-white/5 p-4 rounded-lg text-white" key={`diagram-${index}`}>
-                      {message.content}
-                    </div>
-                  </motion.div>
-                </div>
               );
             } else {
-              return (
-                <div key={index} className="flex justify-start w-full">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+              if (message.type === "diagram") {
+                return (
+                  <motion.div 
+                    key={index} 
+                    className="flex justify-start w-full"
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="max-w-3xl p-4 rounded-2xl bg-white/10 backdrop-blur-md text-white"
+                    transition={{ duration: 0.4, delay: 0.1 }}
                   >
-                    <div className="prose prose-invert">
-                      {/* Render markdown text */}
-                      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+                    <div className="w-full max-w-3xl p-5 rounded-2xl bg-gray-800/40 backdrop-blur-md border border-gray-700/50 shadow-xl">
+                      <div className="mermaid bg-gray-900/60 p-5 rounded-lg text-white overflow-x-auto" key={`diagram-${index}`}>
+                        {message.content}
+                      </div>
                     </div>
                   </motion.div>
-                </div>
-              );
+                );
+              } else {
+                return (
+                  <motion.div 
+                    key={index} 
+                    className="flex justify-start w-full"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                  >
+                    <div className="max-w-3xl p-4 rounded-2xl rounded-tl-sm bg-gray-800/40 backdrop-blur-md border border-gray-700/50 text-white shadow-lg">
+                      <div className="prose prose-invert prose-headings:text-blue-300 prose-a:text-purple-300 prose-strong:text-white/90 prose-code:text-amber-300 prose-pre:bg-gray-900/70 prose-pre:border prose-pre:border-gray-700/50 prose-pre:rounded-md max-w-none">
+                        <div dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
             }
-          }
-        })}
+          })}
+        </AnimatePresence>
 
         {isLoading && (
-          <div className="flex justify-start w-full">
-            <div className="max-w-3xl p-4 rounded-2xl bg-white/10 backdrop-blur-md text-white">
-              <Loader2 className="w-5 h-5 animate-spin" />
+          <motion.div 
+            className="flex justify-start w-full"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="max-w-3xl p-4 rounded-2xl bg-gray-800/30 backdrop-blur-md text-white border border-gray-700/30">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+                <span className="text-sm text-gray-300">Thinking...</span>
+              </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {error && (
-          <Alert variant="destructive" className="rounded-xl">
+          <Alert variant="destructive" className="rounded-xl border border-red-900/50 bg-red-950/50 backdrop-blur-md">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Field */}
-      <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-md w-full fixed bottom-0 z-10">
+      {/* Improved input field */}
+      <div className="border-t border-gray-800/70 p-4 bg-gray-900/80 backdrop-blur-md w-full fixed bottom-0 z-10 shadow-lg">
         <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
-          <div className="flex items-start space-x-2 w-full">
-          <textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder={repoCloned ? "Ask a question about the code..." : "Enter GitHub repository URL..."}
-            className="flex-1 p-4 h-15 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-            disabled={isLoading}
-          />
+          <div className="flex items-start space-x-3 w-full">
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              placeholder={repoCloned ? "Ask a question about the code..." : "Enter GitHub repository URL..."}
+              className="flex-1 p-4 h-15 rounded-xl bg-gray-800/70 border border-gray-700/70 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/70 focus:border-transparent resize-none shadow-inner"
+              disabled={isLoading}
+            />
 
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               type="submit"
               disabled={isLoading || !inputValue.trim()}
-              className="p-4 h-15 w-20 flex justify-center items-center rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white disabled:opacity-50 self-start"
+              className="p-4 h-15 w-16 flex justify-center items-center rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed self-start shadow-lg shadow-purple-700/20"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -315,33 +316,91 @@ const Home = () => {
               )}
             </motion.button>
           </div>
+          
+          {/* Message hint */}
+          <div className="text-xs text-gray-500 text-center mt-2">
+            Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400 text-xs mx-1">Enter</kbd> to send, <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400 text-xs mx-1">Shift+Enter</kbd> for new line
+          </div>
         </form>
       </div>
+      
+      {/* Scroll indicator */}
+      {messages.length > 2 && (
+        <motion.button
+          onClick={scrollToBottom}
+          className="fixed bottom-24 right-6 p-2 rounded-full bg-gray-800/70 backdrop-blur-md border border-gray-700/50 text-white z-20 shadow-lg"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          animate={{ opacity: 0.8 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown className="w-5 h-5" />
+        </motion.button>
+      )}
     </div>
   );
 };
 
-// Simple function to convert markdown to HTML
+// Improved markdown renderer with better styling
 const renderMarkdown = (text) => {
   if (!text) return '';
   
+  // Convert code blocks
+  let html = text.replace(/```(\w*)([\s\S]*?)```/g, (match, lang, code) => {
+    return `<pre class="language-${lang || 'text'}"><code>${code.trim()}</code></pre>`;
+  });
+  
+  // Convert inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
   // Convert bold
-  let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   
   // Convert italic
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   
   // Convert bullet points
+  html = html.replace(/^\s*-\s+(.*)/gm, '<li>$1</li>');
   html = html.replace(/^\s*\*\s+(.*)/gm, '<li>$1</li>');
-  html = html.replace(/<li>.*?<\/li>/gs, match => `<ul>${match}</ul>`);
+  
+  // Wrap lists
+  let inList = false;
+  const lines = html.split('\n');
+  html = lines.map(line => {
+    if (line.includes('<li>')) {
+      if (!inList) {
+        inList = true;
+        return '<ul>' + line;
+      }
+      return line;
+    } else if (inList) {
+      inList = false;
+      return '</ul>' + line;
+    }
+    return line;
+  }).join('\n');
+  
+  if (inList) {
+    html += '</ul>';
+  }
   
   // Convert headers
   html = html.replace(/^\s*###\s+(.*)/gm, '<h3>$1</h3>');
   html = html.replace(/^\s*##\s+(.*)/gm, '<h2>$1</h2>');
   html = html.replace(/^\s*#\s+(.*)/gm, '<h1>$1</h1>');
   
-  // Convert paragraphs (simple)
-  html = html.replace(/\n\n/g, '<br><br>');
+  // Convert paragraphs
+  html = html.split('\n\n').map(para => {
+    if (!para.trim()) return '';
+    if (para.includes('<h1>') || para.includes('<h2>') || para.includes('<h3>') || 
+        para.includes('<ul>') || para.includes('<pre>')) {
+      return para;
+    }
+    return `<p>${para}</p>`;
+  }).join('');
+  
+  // Convert line breaks
+  html = html.replace(/\n/g, '<br>');
   
   return html;
 };
